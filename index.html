@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Python 実行環境 (Monaco + Pyodide)</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column; /* 縦に並べる */
+      font-family: sans-serif;
+    }
+
+    #editor {
+      flex: 1;          /* 上側の Monaco が画面の大部分を占める */
+      min-height: 200px;
+    }
+
+    #output {
+      height: 200px;    /* 下側のコンソール固定高さ */
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid #ccc;
+    }
+
+    .toolbar {
+      background: #f0f0f0;
+      padding: 5px 10px;
+      border-bottom: 1px solid #ccc;
+      text-align: left;
+    }
+
+    #console {
+      flex: 1;
+      background: #1e1e1e;
+      color: #0f0;
+      padding: 10px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    button {
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+
+  <div id="output">
+    <div class="toolbar">
+      <button id="run-btn">RUN CODE</button>
+    </div>
+    <div id="console"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs/loader.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
+
+  <script>
+    let editor;
+    let pyodide;
+    const files = {
+      'main.py': `"""
+Welcome to NyanthuWebIDE!
+
+This IDE is for learning Python.
+Docs: https://docs.python.org/3/
+
+If you are not satisfied with this IDE,
+I recommend using Python 3: https://www.python.org/downloads/
+"""
+
+def main():
+    for times in range(10):
+	    print("count" + str(times))
+
+if __name__ == "__main__":
+    main()`
+    };
+
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.53.0/min/vs' }});
+    require(['vs/editor/editor.main'], async function() {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: files['main.py'],
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        fontSize: 14
+      });
+
+      pyodide = await loadPyodide();
+      console.log("Pyodide 読み込み完了");
+    });
+
+    document.getElementById('run-btn').addEventListener('click', async () => {
+      const consoleEl = document.getElementById('console');
+      consoleEl.innerHTML = '';
+      files['main.py'] = editor.getValue();
+
+      try {
+        pyodide.runPython(`
+import sys
+from js import document
+class Console:
+    def write(self, text):
+        document.getElementById("console").innerHTML += text.replace("\\n","<br>")
+    def flush(self): pass
+sys.stdout = Console()
+sys.stderr = Console()
+        `);
+        await pyodide.runPythonAsync(files['main.py']);
+      } catch (err) {
+        consoleEl.innerHTML += `<span style="color:red;">${err.message}</span><br>`;
+      }
+    });
+  </script>
+</body>
+</html>
